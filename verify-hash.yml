@@ -1,0 +1,53 @@
+name: Manual Workflow Trigger
+on:
+  workflow_dispatch:
+    inputs:
+      parameter_name:
+        description: 'Optional description'
+        required: false
+
+jobs:
+  file_hash:
+    runs-on: self-hosted
+    env:
+      LOCAL_PATH: checkout
+      VERIFIER_PATH: Build-Verification
+      CODESIGNSECURE_URL: https://devcodesignsecure.encryptionconsulting.com
+      EMAIL_RECIPIENT: jamie@encryptionconsulting.com
+
+    steps:
+      - name: Build the code
+        uses: actions/checkout@v4
+        with:
+          repository: shivamSharmaMWP/buildtest
+          path: ${{env.LOCAL_PATH}}
+          token: ${{ secrets.ACCESS_TOKEN_GITHUB }}
+          ref: main
+          
+      - name: Post build calculate hash of all the files
+        uses: actions/checkout@v4
+        with:
+          repository: Encryption-Consulting-LLC/Build-Verification
+          path: ${{env.VERIFIER_PATH}}
+          token: ${{ secrets.ACCESS_TOKEN_GITHUB }}
+          ref: main
+          
+      - name: Forming the command to execute
+        id: verify_hash
+        run: echo "::set-output name=hash_cmd::$GITHUB_WORKSPACE/${{env.VERIFIER_PATH}}/build_verifier_on_build_trigger.py $GITHUB_WORKSPACE/${{env.LOCAL_PATH}} $GITHUB_REPOSITORY $GITHUB_REF_NAME"
+        
+      - name: Calculate the hash of all the files
+        id: run_verify_script
+        run: ${{steps.verify_hash.outputs.hash_cmd}}
+        env:
+          ACCESS_TOKEN_GITHUB: ${{ secrets.ACCESS_TOKEN_GITHUB }}
+          CODESIGNSECURE_URL: ${{env.CODESIGNSECURE_URL}}
+          CODESIGNSECURE_ACCESS_TOKEN: ${{ secrets.CODESIGNSECURE_ACCESS_TOKEN }}
+          EMAIL_RECIPIENT: ${{env.EMAIL_RECIPIENT}}
+        
+      - name: Check for errors
+        run: |
+          if [[ "${{ steps.run_verify_script.outputs.stdout }}" == "[error]"* ]]; then
+            echo "An error occurred: ${{ steps.run_verify_script.outputs.stdout }}"
+            exit 1  # Fail the workflow
+          fi

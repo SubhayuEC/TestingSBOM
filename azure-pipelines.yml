@@ -1,0 +1,16 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+- main
+
+pool:
+  name: Default
+variables:
+  EC_Client_Auth: C:\Users\ja785\Desktop\Testing files and certs\0520pfx.pfx
+
+steps:
+- script: |
+    signtool sign /csp "Encryption Consulting Key Storage Provider" /kc onetech /fd SHA256 /f "C:\Users\ja785\Desktop\Testing files and certs\onetech.pem" /tr http://timestamp.digicert.com /td SHA256 "C:\Users\ja785\Desktop\Testing files and certs\winsdksetup.exe"

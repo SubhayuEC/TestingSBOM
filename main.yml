@@ -1,0 +1,45 @@
+name: Calculate file hash
+'on':
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**/file_hash.txt'
+jobs:
+  file_hash:
+    runs-on: self-hosted
+    env:
+      LOCAL_PATH: checkout
+    steps:
+      - name: Checkout the infrastructure code
+        uses: actions/checkout@v4
+        with:
+          repository: Encryption-Consulting-LLC/Build-Verification
+          path: ''
+          token: ${{ secrets.ACCESS_TOKEN_GITHUB }}
+          ref: main
+          
+      - name: Checkout the code for which file hash needs to be calculated
+        uses: actions/checkout@v4
+        with:
+          repository: ''
+          path: ${{env.LOCAL_PATH}}
+          token: ${{ secrets.ACCESS_TOKEN_GITHUB }}
+          ref: main
+          
+      - name: Forming the command to execute
+        id: cal_hash
+        run: echo "::set-output name=hash_cmd::$GITHUB_WORKSPACE/build-verifier-on-checkin.py $GITHUB_WORKSPACE/${{env.LOCAL_PATH}} $GITHUB_REPOSITORY $GITHUB_REF_NAME"
+
+      - name: Calculate the hash of all the files
+        id: run_script
+        run: ${{steps.cal_hash.outputs.hash_cmd}}
+        env:
+          ACCESS_TOKEN_GITHUB: ${{ secrets.ACCESS_TOKEN_GITHUB }}
+
+      - name: Check for errors
+        run: |
+          if [[ "${{ steps.run_script.outputs.stdout }}" == *"##[error]"* ]]; then
+            echo "An error occurred: ${{ steps.run_script.outputs.stdout }}"
+            exit 1  # Fail the workflow
+          fi
