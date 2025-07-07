@@ -1,0 +1,115 @@
+trigger:
+  branches:
+    include:
+    - Development
+parameters:
+- name: targetBranch
+  type: string
+  default: 'Release01'
+- name: certFilePath
+  type: string
+  default: 'C:\\demo files\\Signing Certificates\\CertEnrollTest.crt'
+- name: cspName
+  type: string
+  default: 'Encryption Consulting Key Storage provider'
+- name: keyContainer
+  type: string
+  default: 'CertEnrollTest'
+- name: timestampUrl
+  type: string
+  default: 'http://timestamp.sectigo.com'
+variables:
+- name: signtoolPath
+  value: "C:\\Program Files (x86)\\Windows Kits\\10\\bin\\10.0.26100.0\\x64\\signtool.exe"
+- name: EC_Client_Auth
+  value: "C:\\demo files\\Auth Certificate Details\\Bechtel-Auth-Cert.pfx"
+- name: EC_Client_Pass
+  value: "a1a79379ca97"
+- name: EC_SSL_VERBOSE
+  value: 1
+stages:
+- stage: __default
+  jobs:
+  - job: Job
+    pool:
+      name: Default
+    steps:
+    - task: 6d15af64-176c-496d-b583-fd2ae21d4df4@1
+      inputs:
+        repository: self
+        persistCredentials: true
+        clean: true
+        fetchDepth: 0
+    - task: CmdLine@2
+      displayName: 'Find PowerShell files and store paths'
+      inputs:
+        script: |
+          echo Looking for .ps1 files...
+          dir /s /b *.ps1 > psfiles.txt
+    - task: CmdLine@2
+      displayName: 'Sign PowerShell files'
+      inputs:
+        script: >
+          @echo off
+
+          setlocal
+
+
+          set SIGNTOOL="C:\\Program Files (x86)\\Windows Kits\\10\\bin\\10.0.26100.0\\x64\\signtool.exe"
+
+          set CSPNAME=Encryption Consulting Key Storage provider
+
+          set KEYCONTAINER=CertEnrollTest
+
+          set CERTFILE=C:\\demo files\\Signing Certificates\\CertEnrollTest.crt
+
+          set TIMESTAMPURL=http://timestamp.sectigo.com
+
+
+          echo Signing using: %SIGNTOOL%
+
+
+          for /f "usebackq delims=" %%f in ("$(Build.SourcesDirectory)\psfiles.txt") do (
+            echo Signing "%%f"
+            if exist "%%f" (
+              echo Running: %SIGNTOOL% sign ^
+                /csp "%CSPNAME%" ^
+                /kc "%KEYCONTAINER%" ^
+                /fd SHA256 ^
+                /f "%CERTFILE%" ^
+                /tr "%TIMESTAMPURL%" ^
+                /td SHA256 ^
+                "%%f"
+
+              call %SIGNTOOL% sign ^
+                /csp "%CSPNAME%" ^
+                /kc "%KEYCONTAINER%" ^
+                /fd SHA256 ^
+                /f "%CERTFILE%" ^
+                /tr "%TIMESTAMPURL%" ^
+                /td SHA256 ^
+                "%%f"
+            ) else (
+              echo File not found: %%f
+            )
+          )
+    - task: CmdLine@2
+      displayName: 'Push signed files to Release01 branch'
+      inputs:
+        script: >
+          git config user.email "aryan@encryptionconsulting.com"
+
+          git config user.name "Aryan"
+
+
+          git checkout Release01 2>nul || git checkout -b Release01
+
+
+          git add *.ps1
+
+          git diff --cached --quiet || (
+            git commit -m "Signed PowerShell files via pipeline"
+            git push origin Release01 --force
+          )
+
+signature: D4pK05JW0xGTzZRC3CXz00TTxgNkl2Xl9Bv/2uSZSFXQDU35d6LT+Nn+3d7JMfcce4zTue/l9KHx308fZAJYQseFUAeRHWyJLQCz6BjQmds7WJxnF3qtZTP+T56pxCvqRVmjrYe0lwwdYe354R1SOYZJuTIR35qRBjNoOxjvD2xQKM8v0wogbzPrY6W6Tp2FxqCfIuRHz+g/qGdlBT6qhg8vb0bSZQXi6tJPCF8mf+/QMzHmPqyyolmqLqiqmh1kkaLYNFiVFYJyhZzVStNQXJrxqzoBVI95JKElHYgIOQQvqJBhg07ASWRGr2eVxqJiVa5zuzKdd80HGt52waKEkdxDM/QLePFA1Sv+FfT2ebUgY7aOyAyZTeOyq8igTy8pkhpNtu1+Zu3w7VFDCF4ogf9ScycecAUTpzcL8G5B+DZgyHTCJDxekO8NofW9bMUVBGSUHzwKXhLi+pYZVMfLA1heXwLgfLeP+gzPbbC3qGTzI21HpRdKmLcTQJcRqwNC
